@@ -73,7 +73,7 @@ class UEFIHelper(BackgroundTaskThread):
 
         _start = self.bv.get_function_at(self.bv.entry_point)
         if self.bv.view_type != "TE":
-            _start.type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
+            _start.function_type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
 
     def _load_guids(self):
         """Read known GUIDs from CSV and convert string GUIDs to bytes
