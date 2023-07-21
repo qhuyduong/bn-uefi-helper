@@ -230,7 +230,7 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         func = self.bv.get_function_at(instr.dest.constant)
-        old = func.type
+        old = func.function_type
         call_args = instr.params
         new_params = []
         for arg, param in zip(call_args, old.parameters):
