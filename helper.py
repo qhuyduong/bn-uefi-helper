@@ -6,23 +6,31 @@ import os
 import csv
 import glob
 import uuid
-from binaryninja import (BackgroundTaskThread, SegmentFlag, SectionSemantics, BinaryReader, Symbol,
-                         SymbolType, HighLevelILOperation, BinaryView)
+from binaryninja import (
+    BackgroundTaskThread,
+    SegmentFlag,
+    SectionSemantics,
+    BinaryReader,
+    Symbol,
+    SymbolType,
+    HighLevelILOperation,
+    BinaryView,
+)
 from binaryninja.highlevelil import HighLevelILInstruction
-from binaryninja.types import (Type, FunctionParameter)
+from binaryninja.types import Type, FunctionParameter
+
 
 class UEFIHelper(BackgroundTaskThread):
-    """Class for analyzing UEFI firmware to automate GUID annotation, segment fixup, type imports, and more
-    """
+    """Class for analyzing UEFI firmware to automate GUID annotation, segment fixup, type imports, and more"""
 
     def __init__(self, bv: BinaryView):
-        BackgroundTaskThread.__init__(self, '', False)
+        BackgroundTaskThread.__init__(self, "", False)
         self.bv = bv
         self.br = BinaryReader(self.bv)
         self.dirname = os.path.dirname(os.path.abspath(__file__))
         self.guids = self._load_guids()
         self.gbs_assignments = []
-        self.progress = ''
+        self.progress = ""
 
     def _fix_segments(self):
         """UEFI modules run during boot, without page protections. Everything is RWX despite that the PE is built with
@@ -33,32 +41,38 @@ class UEFIHelper(BackgroundTaskThread):
         for seg in self.bv.segments:
             # Make segment RWX
             self.bv.add_user_segment(
-                seg.start, seg.data_length, seg.data_offset, seg.data_length,
-                SegmentFlag.SegmentWritable|SegmentFlag.SegmentReadable|SegmentFlag.SegmentExecutable
+                seg.start,
+                seg.data_length,
+                seg.data_offset,
+                seg.data_length,
+                SegmentFlag.SegmentWritable
+                | SegmentFlag.SegmentReadable
+                | SegmentFlag.SegmentExecutable,
             )
 
             # Make section semantics ReadWriteDataSectionSemantics
             for section in self.bv.get_sections_at(seg.start):
-                self.bv.add_user_section(section.name, section.end-section.start,
-                                         SectionSemantics.ReadWriteDataSectionSemantics)
+                self.bv.add_user_section(
+                    section.name,
+                    section.end - section.start,
+                    SectionSemantics.ReadWriteDataSectionSemantics,
+                )
 
     def _import_types_from_headers(self):
-        """Parse EDKII types from header files
-        """
+        """Parse EDKII types from header files"""
 
-        hdrs_path = os.path.join(self.dirname, 'headers')
-        headers = glob.glob(os.path.join(hdrs_path, '*.h'))
+        hdrs_path = os.path.join(self.dirname, "headers")
+        headers = glob.glob(os.path.join(hdrs_path, "*.h"))
         for hdr in headers:
             _types = self.bv.platform.parse_types_from_source_file(hdr)
             for name, _type in _types.types.items():
                 self.bv.define_user_type(name, _type)
 
     def _set_entry_point_prototype(self):
-        """Apply correct prototype to the module entry point
-        """
+        """Apply correct prototype to the module entry point"""
 
         _start = self.bv.get_function_at(self.bv.entry_point)
-        if self.bv.view_type != 'TE':
+        if self.bv.view_type != "TE":
             _start.type = "EFI_STATUS ModuleEntryPoint(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)"
 
     def _load_guids(self):
@@ -67,8 +81,8 @@ class UEFIHelper(BackgroundTaskThread):
         :return: Dictionary containing GUID bytes and associated names
         """
 
-        guids_path = os.path.join(self.dirname, 'guids.csv')
-        with open(guids_path, encoding='utf-8') as f:
+        guids_path = os.path.join(self.dirname, "guids.csv")
+        with open(guids_path, encoding="utf-8") as f:
             reader = csv.reader(f, skipinitialspace=True)
             guids = dict(reader)
 
@@ -86,14 +100,16 @@ class UEFIHelper(BackgroundTaskThread):
         :param address: Address of the GUID
         """
 
-        print(f'Found {name} at {hex(address)} ({uuid.UUID(bytes_le=self.guids[name])})')
+        print(
+            f"Found {name} at {hex(address)} ({uuid.UUID(bytes_le=self.guids[name])})"
+        )
 
         # Just to avoid a unlikely false positive and screwing up disassembly
         if self.bv.get_functions_at(address) != []:
-            print(f'There is code at {address}, not applying GUID type and name')
+            print(f"There is code at {address}, not applying GUID type and name")
             return
 
-        self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, address, 'g'+name))
+        self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, address, "g" + name))
         t = self.bv.parse_type_string("EFI_GUID")
         self.bv.define_user_data_var(address, t[0])
 
@@ -111,10 +127,8 @@ class UEFIHelper(BackgroundTaskThread):
         except ValueError:
             return None
 
-
     def _find_known_guids(self):
-        """Search for known GUIDs and apply names to matches not within a function
-        """
+        """Search for known GUIDs and apply names to matches not within a function"""
 
         for seg in self.bv.segments:
             for i in range(seg.start, seg.end):
@@ -148,24 +162,38 @@ class UEFIHelper(BackgroundTaskThread):
             return
 
         _type = instr.src.var.type
-        if len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_HANDLE':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gHandle'))
-        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_BOOT_SERVICES':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gBS'))
+        if len(_type.tokens) == 1 and str(_type.tokens[0]) == "EFI_HANDLE":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gHandle")
+            )
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == "EFI_BOOT_SERVICES":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gBS")
+            )
             self.gbs_assignments.append(instr.dest.src.constant)
-        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_RUNTIME_SERVICES':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gRS'))
-        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_SYSTEM_TABLE':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gST'))
-        elif len(_type.tokens) == 1 and str(_type.tokens[0]) == 'EFI_PEI_FILE_HANDLE':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gHandle'))
-        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == 'EFI_PEI_SERVICES':
-            self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, instr.dest.src.constant, 'gPeiServices'))
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == "EFI_RUNTIME_SERVICES":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gRS")
+            )
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == "EFI_SYSTEM_TABLE":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gST")
+            )
+        elif len(_type.tokens) == 1 and str(_type.tokens[0]) == "EFI_PEI_FILE_HANDLE":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gHandle")
+            )
+        elif len(_type.tokens) > 2 and str(_type.tokens[2]) == "EFI_PEI_SERVICES":
+            self.bv.define_user_symbol(
+                Symbol(SymbolType.DataSymbol, instr.dest.src.constant, "gPeiServices")
+            )
         else:
             return
 
         self.bv.define_user_data_var(instr.dest.src.constant, instr.src.var.type)
-        print(f'Found global assignment - offset:{hex(instr.dest.src.constant)} type:{instr.src.var.type}')
+        print(
+            f"Found global assignment - offset:{hex(instr.dest.src.constant)} type:{instr.src.var.type}"
+        )
 
     def _check_and_prop_types_on_call(self, instr: HighLevelILInstruction):
         """Most UEFI modules don't assign globals in the entry function and instead call a initialization routine and
@@ -175,7 +203,10 @@ class UEFIHelper(BackgroundTaskThread):
         :param instr: High level IL instruction object
         """
 
-        if instr.operation not in [HighLevelILOperation.HLIL_TAILCALL, HighLevelILOperation.HLIL_CALL]:
+        if instr.operation not in [
+            HighLevelILOperation.HLIL_TAILCALL,
+            HighLevelILOperation.HLIL_CALL,
+        ]:
             return
 
         if instr.dest.operation != HighLevelILOperation.HLIL_CONST_PTR:
@@ -183,7 +214,15 @@ class UEFIHelper(BackgroundTaskThread):
 
         argv_is_passed = False
         for arg in instr.params:
-            if any(typestr in str(arg) for typestr in ['ImageHandle', 'SystemTable', 'FileHandle', 'PeiServices']):
+            if any(
+                typestr in str(arg)
+                for typestr in [
+                    "ImageHandle",
+                    "SystemTable",
+                    "FileHandle",
+                    "PeiServices",
+                ]
+            ):
                 argv_is_passed = True
                 break
 
@@ -195,7 +234,7 @@ class UEFIHelper(BackgroundTaskThread):
         call_args = instr.params
         new_params = []
         for arg, param in zip(call_args, old.parameters):
-            if hasattr(arg, 'var'):
+            if hasattr(arg, "var"):
                 new_type = arg.var.type
             else:
                 new_type = param.type
@@ -206,14 +245,19 @@ class UEFIHelper(BackgroundTaskThread):
         # Type.Function(...). However, during testing this isn't the case. I am only able to get it to work if I
         # set type to a string and update analysis.
         gross_hack = str(
-            Type.function(old.return_value, new_params, old.calling_convention,
-                          old.has_variable_arguments, old.stack_adjustment)
-        ).replace('(', '{}('.format(func.name))
+            Type.function(
+                old.return_value,
+                new_params,
+                old.calling_convention,
+                old.has_variable_arguments,
+                old.stack_adjustment,
+            )
+        ).replace("(", "{}(".format(func.name))
         try:
             func.type = gross_hack
             self.bv.update_analysis_and_wait()
         except SyntaxError:
-            pass # BN can't parse int48_t and other types despite that it uses it. Ran into this from a sidt instruction
+            pass  # BN can't parse int48_t and other types despite that it uses it. Ran into this from a sidt instruction
 
     def _set_global_variables(self):
         """On entry, UEFI modules usually set global variables for EFI_BOOT_SERVICES, EFI_RUNTIME_SERIVCES, and
@@ -246,12 +290,14 @@ class UEFIHelper(BackgroundTaskThread):
         if not name:
             return
 
-        if name.endswith('Guid'):
-            name = name.replace('Guid', '')
-        print(f'Found {name} at {hex(var_addr)}')
+        if name.endswith("Guid"):
+            name = name.replace("Guid", "")
+        print(f"Found {name} at {hex(var_addr)}")
         self.bv.define_user_symbol(Symbol(SymbolType.DataSymbol, var_addr, name))
 
-    def _name_protocol_var(self, instr: HighLevelILInstruction, guid_idx: int, proto_idx: int):
+    def _name_protocol_var(
+        self, instr: HighLevelILInstruction, guid_idx: int, proto_idx: int
+    ):
         """Set the global protocol variable name by analyzing the call to gBS->LocateProtocol,
         gBS->InstallMultipleProtocolInterfaces, or gBS->InstallProtocol
 
@@ -272,7 +318,9 @@ class UEFIHelper(BackgroundTaskThread):
         if instr.params[proto_idx].operation != HighLevelILOperation.HLIL_CONST_PTR:
             return
 
-        self._name_proto_from_guid(instr.params[guid_idx].constant, instr.params[proto_idx].constant)
+        self._name_proto_from_guid(
+            instr.params[guid_idx].constant, instr.params[proto_idx].constant
+        )
 
     def _name_protocol_vars(self):
         """Iterate xref's for EFI_BOOT_SERVICES global variables, find calls to gBS->LocateProtocol and
@@ -290,32 +338,39 @@ class UEFIHelper(BackgroundTaskThread):
                         if instr.operation != HighLevelILOperation.HLIL_CALL:
                             continue
 
-                        if instr.dest.operation != HighLevelILOperation.HLIL_DEREF_FIELD:
+                        if (
+                            instr.dest.operation
+                            != HighLevelILOperation.HLIL_DEREF_FIELD
+                        ):
                             continue
 
                         # Could also use the structure offset or member index here
-                        if str(instr.dest).endswith('->LocateProtocol'):
+                        if str(instr.dest).endswith("->LocateProtocol"):
                             self._name_protocol_var(instr, 0, 2)
-                        elif str(instr.dest).endswith('->InstallMultipleProtocolInterfaces'):
+                        elif str(instr.dest).endswith(
+                            "->InstallMultipleProtocolInterfaces"
+                        ):
                             self._name_protocol_var(instr, 1, 2)
-                        elif str(instr.dest).endswith('->InstallProtocolInterface'):
+                        elif str(instr.dest).endswith("->InstallProtocolInterface"):
                             self._name_protocol_var(instr, 1, 3)
 
     def run(self):
-        """Run the task in the background
-        """
+        """Run the task in the background"""
 
         self.progress = "UEFI Helper: Fixing up segments, applying types, and searching for known GUIDs ..."
         self._fix_segments()
         self._import_types_from_headers()
         self._set_entry_point_prototype()
         self._find_known_guids()
-        self.progress = "UEFI Helper: searching for global assignments for UEFI core services ..."
+        self.progress = (
+            "UEFI Helper: searching for global assignments for UEFI core services ..."
+        )
         self._set_global_variables()
         self.bv.update_analysis_and_wait()
         self.progress = "UEFI Helper: searching for global protocols ..."
         self._name_protocol_vars()
-        print('UEFI Helper completed successfully!')
+        print("UEFI Helper completed successfully!")
+
 
 def run_uefi_helper(bv: BinaryView):
     """Run UEFI helper utilities in the background
