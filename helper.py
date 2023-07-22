@@ -270,6 +270,8 @@ class UEFIHelper(BackgroundTaskThread):
                 self._check_and_prop_types_on_call(instr)
 
         for func in self.bv.functions:
+            if func.high_level_il is None:
+                continue
             for block in func.high_level_il:
                 for instr in block:
                     self._set_if_uefi_core_type(instr)
