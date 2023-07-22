@@ -444,3 +444,94 @@ struct EFI_OPEN_PROTOCOL_INFORMATION_ENTRY __packed {
     UINT32 Attributes;
     UINT32 OpenCount;
 };
+
+typedef void* EFI_HII_HANDLE;
+typedef struct {
+    EFI_GUID PackageListGuid;
+    UINT32 PackageLength;
+} EFI_HII_PACKAGE_LIST_HEADER;
+typedef UINTN EFI_HII_DATABASE_NOTIFY_TYPE;
+typedef struct {
+    UINT32 Length;
+    UINT32 Type;
+    // UINT8  Data[...];
+} EFI_HII_PACKAGE_HEADER;
+typedef struct {
+    UINT16 LayoutLength;
+    EFI_GUID Guid;
+    UINT32 LayoutDescriptorStringOffset;
+    UINT8 DescriptorCount;
+    // EFI_KEY_DESCRIPTOR    Descriptors[];
+} EFI_HII_KEYBOARD_LAYOUT;
+
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_NOTIFY)(
+    UINT8,
+    const EFI_GUID*,
+    const EFI_HII_PACKAGE_HEADER*,
+    EFI_HII_HANDLE,
+    EFI_HII_DATABASE_NOTIFY_TYPE);
+
+typedef struct _EFI_HII_DATABASE_PROTOCOL EFI_HII_DATABASE_PROTOCOL;
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_NEW_PACK)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    const EFI_HII_PACKAGE_LIST_HEADER*,
+    EFI_HANDLE,
+    EFI_HII_HANDLE*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_REMOVE_PACK)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    EFI_HII_HANDLE);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_UPDATE_PACK)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    EFI_HII_HANDLE,
+    const EFI_HII_PACKAGE_LIST_HEADER*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_LIST_PACKS)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    UINT8,
+    const EFI_GUID*,
+    UINTN*,
+    EFI_HII_HANDLE*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_EXPORT_PACKS)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    EFI_HII_HANDLE,
+    UINTN*,
+    const EFI_HII_PACKAGE_LIST_HEADER*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_REGISTER_NOTIFY)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    UINT8,
+    const EFI_GUID*,
+    EFI_HII_DATABASE_NOTIFY,
+    EFI_HII_DATABASE_NOTIFY_TYPE,
+    EFI_HANDLE*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_UNREGISTER_NOTIFY)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    EFI_HANDLE*);
+typedef EFI_STATUS(__fastcall* EFI_HII_FIND_KEYBOARD_LAYOUTS)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    UINT16*,
+    EFI_GUID*);
+typedef EFI_STATUS(__fastcall* EFI_HII_GET_KEYBOARD_LAYOUT)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    const EFI_GUID*,
+    UINT16*,
+    EFI_HII_KEYBOARD_LAYOUT*);
+typedef EFI_STATUS(__fastcall* EFI_HII_SET_KEYBOARD_LAYOUT)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    const EFI_GUID*);
+typedef EFI_STATUS(__fastcall* EFI_HII_DATABASE_GET_PACK_HANDLE)(
+    const EFI_HII_DATABASE_PROTOCOL*,
+    EFI_HII_HANDLE,
+    EFI_HANDLE*);
+
+struct _EFI_HII_DATABASE_PROTOCOL {
+    EFI_HII_DATABASE_NEW_PACK NewPackageList;
+    EFI_HII_DATABASE_REMOVE_PACK RemovePackageList;
+    EFI_HII_DATABASE_UPDATE_PACK UpdatePackageList;
+    EFI_HII_DATABASE_LIST_PACKS ListPackageLists;
+    EFI_HII_DATABASE_EXPORT_PACKS ExportPackageLists;
+    EFI_HII_DATABASE_REGISTER_NOTIFY RegisterPackageNotify;
+    EFI_HII_DATABASE_UNREGISTER_NOTIFY UnregisterPackageNotify;
+    EFI_HII_FIND_KEYBOARD_LAYOUTS FindKeyboardLayouts;
+    EFI_HII_GET_KEYBOARD_LAYOUT GetKeyboardLayout;
+    EFI_HII_SET_KEYBOARD_LAYOUT SetKeyboardLayout;
+    EFI_HII_DATABASE_GET_PACK_HANDLE GetPackageListHandle;
+};
